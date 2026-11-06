@@ -1,0 +1,150 @@
+workspace "Music_server" "Description" {
+
+    !identifiers hierarchical
+
+    model {
+        u = person "User"
+        mus_sys = softwareSystem "Music System" {
+            mc = container "Music Client" {
+                tags "Client"
+            }
+            ms = container "Music Server" {
+                tags "Backend"
+                
+                auth = component "Auth" "Handles authentication"
+                catalog = component "Catalog" "Manages music and metadata"
+                searcher = component "Search" "Searches for music/album/artist"
+                playlist = component "Playlist" "Manages playlists"
+                streamer = component "Streamer" "Streams music to client"
+                import_man = component "Import Manager" "Manages tasks for new data import"
+           }
+            mw = container "Music Worker" {
+                tags "Worker"
+                
+                task_handler = component "Task Handler" "Reads tasks and manages background tasks"
+                meta_provider = component "Metadata Provider" "Gets music metadata from external sources"
+                music_searcher = component "Music Searcher" "Looks through music providers to download music"
+                audio_importer = component "Audio Importer" "Downloads music"
+                storage_man = component "Storage Manager" "Manages music files in storage"
+                music_processor = component "Music Processor" "Processes downloaded music"
+                catalog_access = component "Catalog Access" "Accesses system's music catalog"
+            }
+            db = container "PostgreSQL" {
+                tags "Database"
+            }
+            fs = container "File Storage" {
+                tags "Storage"
+            }
+            red = container "Redis" {
+                tags "Queue"
+            }
+            
+        }
+        ext_api = group "External API" {
+            it = softwareSystem "iTunes API"
+            mp = softwareSystem "Music Provider"
+        }
+        
+        u -> mus_sys.mc "Uses"
+        
+        mus_sys.mc -> mus_sys.ms "HTTPS / REST API"
+        
+        mus_sys.ms -> mus_sys.db "Reads and writes music metadata"
+        mus_sys.ms -> mus_sys.fs "Reads music files"
+
+
+        mus_sys.mw -> mus_sys.fs "Saves music"
+        mus_sys.mw -> mus_sys.red "Reads queue"
+        mus_sys.mw -> mus_sys.db "Reads and writes music metadata"
+        mus_sys.mw -> it "Gets track/artist/album metadata"
+        mus_sys.mw -> mp "Gets music"
+        
+        mus_sys.ms.searcher -> mus_sys.ms.import_man "Requests for external music search"
+        mus_sys.ms.searcher -> mus_sys.ms.catalog "Looks for existing songs"
+        
+        mus_sys.ms.import_man -> mus_sys.red "Enqueues external music search"
+        mus_sys.ms.import_man -> mus_sys.db "Writes task metadata"
+        
+        mus_sys.ms.streamer -> mus_sys.ms.catalog "Looks for music to play"
+        mus_sys.ms.streamer -> mus_sys.fs "Gets music files to stream"
+        
+        mus_sys.ms.auth -> mus_sys.db "Reads user data or creates new user"
+        
+        mus_sys.ms.catalog -> mus_sys.db "Reads and writes music metadata"
+        
+        mus_sys.ms.playlist -> mus_sys.ms.catalog "Gets music metadata"
+        mus_sys.ms.playlist -> mus_sys.db "Manages playlist data and access rules"
+        
+        mus_sys.mw.task_handler -> mus_sys.red "Reads tasks"
+        mus_sys.mw.task_handler -> mus_sys.mw.catalog_access "Checks and updates catalog data"
+        mus_sys.mw.task_handler -> mus_sys.mw.meta_provider "Gets music metadata from external source"
+        mus_sys.mw.task_handler -> mus_sys.mw.music_searcher "Gets results on music search in external sources"
+        mus_sys.mw.task_handler -> mus_sys.mw.audio_importer "Gets downloaded music"
+        mus_sys.mw.task_handler -> mus_sys.mw.music_processor "Gets processed music"
+        mus_sys.mw.task_handler -> mus_sys.mw.storage_man "Gets result of storage writes"
+        
+        mus_sys.mw.catalog_access -> mus_sys.db "Writes new music data / reads for existing music"
+        
+        mus_sys.mw.storage_man -> mus_sys.fs "Writes new music"
+        
+    }
+
+    views {
+        systemContext mus_sys "Diagram1" {
+            include *
+        }
+
+        container mus_sys "Diagram2" {
+            include *
+        }
+        
+        component mus_sys.ms "MusicServerComponents" {
+            include *
+        }
+        
+        component mus_sys.mw "MusicWorkerComponents" {
+            include *
+        }
+
+        styles {
+            element "Element" {
+                color #9a28f8
+                stroke #9a28f8
+                strokeWidth 7
+                shape roundedbox
+            }
+            element "Person" {
+                shape person
+            }
+            element "Database" {
+                shape cylinder
+            }
+            element "Storage" {
+                shape folder
+            }
+            element "Queue" {
+                shape cylinder
+            }
+            element "Backend" {
+                shape terminal
+            }
+            element "Client" {
+                shape window
+            }
+            element "Worker" {
+                shape shell
+            }
+            element "Boundary" {
+                strokeWidth 5
+            }
+            relationship "Relationship" {
+                thickness 4
+            }
+        }
+    }
+
+    configuration {
+        scope softwaresystem
+    }
+
+}
