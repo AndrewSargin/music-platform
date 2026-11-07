@@ -1,0 +1,178 @@
+
+// Docs: https://dbml.dbdiagram.io/docs
+
+Table users {
+  id integer [primary key]
+  username varchar [not null, unique]
+  display_name varchar(50) [not null]
+  login varchar (50) [not null, unique]
+  password_hash varchar [not null]
+  role varchar [not null, default: 'user']
+  created_at timestamptz [default: `now()`]
+
+  checks {
+    `role IN ('user', 'admin')` [name: 'chk_usr_role']
+  }
+}
+
+Table artists {
+  id integer [primary key]
+  name varchar [not null]
+  created_at timestamptz [default: `now()`]
+}
+
+Table playlists {
+  id integer [primary key]
+  name varchar [not null]
+  is_favorite bool [not null, default: false]
+  visibility varchar [not null, default: 'private']
+  owner_id integer [not null]
+
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+
+  indexes {
+    (owner_id)
+  }
+
+  checks {
+    `visibility IN ('private', 'shared', 'public')` [name: 'chk_playlist_visibility']
+  }
+
+  // PostgreSQL-specific: partial unique index
+  // UNIQUE (owner_id) WHERE is_favorite = TRUE
+}
+
+Table playlist_track {
+  playlist_id integer [not null]
+  track_id integer [not null]
+  track_pos integer [not null] 
+
+  indexes {
+    (playlist_id, track_id) [pk]
+    (playlist_id, track_pos) [unique]
+  }
+}
+
+Table playlist_member {
+  user_id integer [not null]
+  playlist_id integer [not null]
+  permission varchar [not null, default: 'viewer']
+
+  indexes {
+    (user_id, playlist_id) [pk]
+    (playlist_id, user_id)
+  }
+
+  checks {
+    `permission IN ('viewer', 'editor')` [name: 'chk_member_permission']
+  }
+}
+
+Table albums {
+  id integer [primary key]
+  name varchar [not null]
+  cover varchar
+  release_date date
+}
+
+Table album_artist {
+  artist_id integer [not null]
+  album_id integer [not null]
+
+  indexes {
+    (artist_id, album_id) [pk]
+  }
+}
+
+Table tracks {
+  id integer [primary key]
+  name varchar [not null]
+  length_msec int [not null]
+  cover varchar
+  release_date date
+  spotify_id varchar [unique]
+  created_at timestamptz [default: `now()`]
+}
+
+Table artist_track {
+  artist_id integer [not null]
+  track_id integer [not null]
+
+  indexes {
+    (artist_id, track_id) [pk]
+  }
+}
+
+Table album_track {
+  track_id integer [not null]
+  album_id integer [not null]
+  track_number integer [not null]
+
+  indexes {
+    (album_id, track_id) [pk]
+    (album_id, track_number) [unique]
+  }
+}
+
+Table genres {
+  id integer [primary key]
+  name varchar [not null, unique]
+}
+
+Table track_genre {
+  track_id integer [not null]
+  genre_id integer [not null]
+
+  indexes {
+    (genre_id, track_id) [pk]
+    (track_id)
+  }
+}
+
+Table track_asset {
+  id integer [primary key]
+  track_id integer [not null]
+  storage_key varchar [not null, unique]
+  format varchar [not null]
+  bitrate integer [not null]
+  file_size int [not null]
+  created_at timestamptz [default: `now()`]
+
+  indexes {
+    (track_id)
+  }
+
+  checks {
+    `bitrate >= 0` [name: 'chk_nonnegative_bitrate']
+  }
+}
+
+Ref: "artists"."id" < "album_artist"."artist_id" [delete: cascade]
+
+Ref: "album_artist"."album_id" > "albums"."id" [delete: cascade]
+
+Ref: "users"."id" < "playlists"."owner_id" [delete: cascade]
+
+Ref: "playlist_member"."user_id" > "users"."id" [delete: cascade]
+
+Ref: "artist_track"."track_id" > "tracks"."id" [delete: cascade]
+
+Ref: "artist_track"."artist_id" > "artists"."id" [delete: cascade]
+
+Ref: "playlist_member"."playlist_id" > "playlists"."id" [delete: cascade]
+
+Ref: "tracks"."id" < "album_track"."track_id" [delete: cascade]
+
+Ref: "album_track"."album_id" > "albums"."id" [delete: cascade]
+
+Ref: "playlists"."id" < "playlist_track"."playlist_id" [delete: cascade]
+
+Ref: "tracks"."id" < "playlist_track"."track_id" [delete: restrict]
+
+Ref: "track_genre"."genre_id" > "genres"."id" [delete: cascade]
+
+Ref: "tracks"."id" < "track_genre"."track_id" [delete: cascade]
+
+Ref: "tracks"."id" < "track_asset"."track_id" [delete: restrict]
+
