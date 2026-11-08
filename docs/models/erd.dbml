@@ -1,7 +1,7 @@
 // Docs: https://dbml.dbdiagram.io/docs
 
 Table users {
-  id integer [primary key]
+  id uuid [primary key]
   username varchar [not null, unique]
   display_name varchar(50) [not null]
   login varchar (50) [not null, unique]
@@ -15,17 +15,17 @@ Table users {
 }
 
 Table artists {
-  id integer [primary key]
+  id uuid [primary key]
   name varchar [not null]
   created_at timestamptz [default: `now()`]
 }
 
 Table playlists {
-  id integer [primary key]
+  id uuid [primary key]
   name varchar [not null]
   is_favorite bool [not null, default: false]
   visibility varchar [not null, default: 'private']
-  owner_id integer [not null]
+  owner_id uuid [not null]
 
   created_at timestamptz [default: `now()`]
   updated_at timestamptz [default: `now()`]
@@ -43,8 +43,8 @@ Table playlists {
 }
 
 Table playlist_track {
-  playlist_id integer [not null]
-  track_id integer [not null]
+  playlist_id uuid [not null]
+  track_id uuid [not null]
   track_pos integer [not null] 
 
   indexes {
@@ -54,8 +54,8 @@ Table playlist_track {
 }
 
 Table playlist_member {
-  user_id integer [not null]
-  playlist_id integer [not null]
+  user_id uuid [not null]
+  playlist_id uuid [not null]
   permission varchar [not null, default: 'viewer']
 
   indexes {
@@ -69,15 +69,15 @@ Table playlist_member {
 }
 
 Table albums {
-  id integer [primary key]
+  id uuid [primary key]
   name varchar [not null]
   cover varchar
   release_date date
 }
 
 Table album_artist {
-  artist_id integer [not null]
-  album_id integer [not null]
+  artist_id uuid [not null]
+  album_id uuid [not null]
 
   indexes {
     (artist_id, album_id) [pk]
@@ -85,7 +85,7 @@ Table album_artist {
 }
 
 Table tracks {
-  id integer [primary key]
+  id uuid [primary key]
   name varchar [not null]
   length_msec int [not null]
   cover varchar
@@ -95,8 +95,8 @@ Table tracks {
 }
 
 Table artist_track {
-  artist_id integer [not null]
-  track_id integer [not null]
+  artist_id uuid [not null]
+  track_id uuid [not null]
 
   indexes {
     (artist_id, track_id) [pk]
@@ -104,8 +104,8 @@ Table artist_track {
 }
 
 Table album_track {
-  track_id integer [not null]
-  album_id integer [not null]
+  track_id uuid [not null]
+  album_id uuid [not null]
   track_number integer [not null]
 
   indexes {
@@ -120,7 +120,7 @@ Table genres {
 }
 
 Table track_genre {
-  track_id integer [not null]
+  track_id uuid [not null]
   genre_id integer [not null]
 
   indexes {
@@ -130,8 +130,8 @@ Table track_genre {
 }
 
 Table track_asset {
-  id integer [primary key]
-  track_id integer [not null]
+  id uuid [primary key]
+  track_id uuid [not null]
   storage_key varchar [not null, unique]
   format varchar [not null]
   bitrate integer [not null]
@@ -148,8 +148,8 @@ Table track_asset {
 }
 
 Table sessions {
-  id integer [primary key]
-  user_id integer [not null]
+  id uuid [primary key]
+  user_id uuid [not null]
   device_name varchar
   refresh_token_hash varchar [not null, unique]
   refresh_token_expires_at timestamptz [not null]
