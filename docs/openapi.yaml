@@ -1,134 +1,412 @@
 openapi: 3.2.0
-info: 
-    title: Music Server API
-    version: 0.0.1
+info:
+  title: Music Server API
+  version: 0.0.1
+components:
+  schemas:
+    TokenResponse:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+          description: Current device session refresh token
+        token_type:
+          type: string
+          enum:
+            - Bearer
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          description: Refresh token of the current device session
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
 paths:
-    /auth/register:
-        post: 
-          summary: Register a new user
-          requestBody: 
-            required: true
-            content:
-                application/json: 
-                  schema:
-                    type: object
-                    required:
-                        - display_name
-                        - login
-                        - password
-                    properties:
-                        display_name:
+  /auth/register:
+    post:
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - display_name
+                - login
+                - password
+              properties:
+                display_name:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                login:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 50
+      responses:
+        '201':
+          description: Successful registration
+        '400':
+          description: Bad request
+        '409':
+          description: User already exists
+        '500':
+          description: Internal server error
+  /auth/login:
+    post:
+      summary: Sign in into account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - login
+                - password
+              properties:
+                login:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 50
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Bad request
+        '401':
+          description: Incorrect login or password
+        '500':
+          description: Internal server error
+  /auth/refresh:
+    post:
+      summary: Refresh session tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Tokens refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Token is invalid, expired or revoked
+        '500':
+          description: Internal server error
+  /auth/logout:
+    post:
+      summary: End current device session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '204':
+          description: No content
+  /auth/logout-all:
+    post:
+      summary: End all user's sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '204':
+          description: No content
+  /users/me/sessions:
+    get:
+      summary: Get user's active sessions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Found active sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - sessions
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - session_id
+                        - is_current
+                        - created_at
+                      properties:
+                        session_id:
+                          type: string
+                          format: uuid
+                        device_name:
+                          type: string
+                          description: Device name, omitted if unavailable
+                        is_current:
+                          type: boolean
+                        created_at:
+                          type: string
+                          format: date-time
+        '401':
+          description: Invalid access token
+        '500':
+          description: Internal server error
+  /users/me/sessions/{session_id}:
+    delete:
+      summary: Log out from selected session
+      security: 
+        - BearerAuth: []
+      parameters: 
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses: 
+        '204':
+          description: No content
+        '401':
+          description: Invalid access token
+        '404':
+          description: Not found
+        '500':
+          description: Internal server error
+  /search:
+    post:
+      summary: Create search request
+      requestBody: 
+        required: true
+        content:
+          application/json: 
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  minLength: 1
+      responses: 
+        '202':
+          description: Accepted
+          content:
+            application/json: 
+              schema:
+                type: object
+                required:
+                  - search_id
+                properties:
+                  search_id:
+                    type: string
+                    format: uuid
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+  /imports:
+    post:
+      summary: Starts content import
+      description: Starts importing content from provided Spotify URL
+      requestBody: 
+        required: true
+        content:
+          application/json: 
+            schema:
+              type: object
+              required:
+                - url
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  pattern: '^https://open\.spotify\.com/'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json: 
+              schema:
+                type: object
+                required:
+                  - import_id
+                properties:
+                  import_id:
+                    type: string
+                    format: uuid
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+  /search/{search_id}:
+    get:
+      summary: Gets status of search operation
+      parameters:
+        - name: search_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json: 
+              schema: 
+                type: object
+                required:
+                  - status
+                  - results
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - pending
+                      - completed
+                      - failed
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - song_name
+                        - artists
+                        - length_sec
+                        - url
+                      properties:
+                        song_name:
+                          type: string
+                          minLength: 1
+                        artists:
+                          type: array
+                          minItems: 1
+                          items:
                             type: string
-                            minLength: 3
-                            maxLength: 50
-                        login:
+                            minLength: 1
+                        length_sec:
+                          type: integer
+                          minimum: 0
+                        album_name:
+                          type: string
+                          minLength: 1
+                        url:
+                          type: string
+                          format: uri
+                        cover_url:
+                          type: string
+                          format: uri
+        '404':
+          description: Not found
+        '500':
+          description: Internal server error
+  /imports/{import_id}:
+    get:
+      summary: Gets status of import operation
+      parameters:
+        - name: import_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json: 
+              schema: 
+                type: object
+                required:
+                  - status
+                  - results
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - pending
+                      - completed
+                      - failed
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - song_name
+                        - artists
+                        - length_sec
+                        - url
+                        - status
+                      properties:
+                        song_name:
+                          type: string
+                          minLength: 1
+                        artists:
+                          type: array
+                          minItems: 1
+                          items:
                             type: string
-                            minLength: 3
-                            maxLength: 50
-                        password:
-                            type: string
-                            minLength: 8
-                            maxLength: 50
-          responses:
-            '201':
-                description: Successful registration
-            '400':
-                description: Bad request
-            '409':
-                description: User already exists
-            '500':
-                description: Internal server error
-    /auth/login:
-        post:
-            summary: Sign in into account
-            requestBody: 
-              required: true
-              content:
-                application/json: 
-                  schema:
-                    type: object
-                    required: 
-                      - login
-                      - password
-                    properties:
-                        login:
-                            type: string
-                            minLength: 3
-                            maxLength: 50
-                        password:
-                            type: string
-                            minLength: 8
-                            maxLength: 50
-            responses:
-                '200':
-                    description: OK
-                    content: 
-                      application/json: 
-                        schema:
-                            type: object
-                            required:
-                                - access_token
-                                - refresh_token
-                                - token_type
-                                - expires_in
-                            properties: 
-                                access_token:
-                                    type: string
-                                refresh_token:
-                                    type: string
-                                token_type:
-                                    type: string
-                                    enum:
-                                        - Bearer
-                                expires_in:
-                                    type: integer
-                                    description: Access token lifetime in seconds
-                '400':
-                    description: Bad request
-                '401':
-                    description: Incorrect login or password
-                '500': 
-                    description: Internal server error
-    /auth/refresh:
-        post:
-            summary: Refresh session tokens
-            requestBody: 
-              required: true
-              content:
-                application/json: 
-                  schema:
-                    type: object
-                    required:
-                        - refresh_token
-                    properties:
-                        refresh_token:
-                            type: string
-            responses: 
-              '200':
-                description: Tokens refreshed
-                content:
-                    application/json: 
-                      schema:
-                        type: object
-                        required: 
-                            - access_token
-                            - refresh_token
-                            - token_type
-                            - expires_in
-                        properties: 
-                            access_token:
-                                type: string
-                            refresh_token:
-                                type: string
-                                description: New token replaces the old one
-                            token_type:
-                                type: string
-                                enum:
-                                    - Bearer
-                            expires_in:
-                                type: integer
-                                description: Access token lifetime in seconds
-              '401':
-                description: Token is invalid, exprired or revoked
-              '500': 
-                description: Internal server error
+                            minLength: 1
+                        length_sec:
+                          type: integer
+                          minimum: 0
+                        album_name:
+                          type: string
+                          minLength: 1
+                        url:
+                          type: string
+                          format: uri
+                        status:
+                          type: string
+                          enum:
+                            - imported
+                            - downloading
+                            - processing
+                            - pending
+                            - failed
+                        cover_url:
+                          type: string
+                          format: uri
+        '404':
+          description: Not found
+        '500':
+          description: Internal server error
