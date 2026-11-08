@@ -1,0 +1,134 @@
+openapi: 3.2.0
+info: 
+    title: Music Server API
+    version: 0.0.1
+paths:
+    /auth/register:
+        post: 
+          summary: Register a new user
+          requestBody: 
+            required: true
+            content:
+                application/json: 
+                  schema:
+                    type: object
+                    required:
+                        - display_name
+                        - login
+                        - password
+                    properties:
+                        display_name:
+                            type: string
+                            minLength: 3
+                            maxLength: 50
+                        login:
+                            type: string
+                            minLength: 3
+                            maxLength: 50
+                        password:
+                            type: string
+                            minLength: 8
+                            maxLength: 50
+          responses:
+            '201':
+                description: Successful registration
+            '400':
+                description: Bad request
+            '409':
+                description: User already exists
+            '500':
+                description: Internal server error
+    /auth/login:
+        post:
+            summary: Sign in into account
+            requestBody: 
+              required: true
+              content:
+                application/json: 
+                  schema:
+                    type: object
+                    required: 
+                      - login
+                      - password
+                    properties:
+                        login:
+                            type: string
+                            minLength: 3
+                            maxLength: 50
+                        password:
+                            type: string
+                            minLength: 8
+                            maxLength: 50
+            responses:
+                '200':
+                    description: OK
+                    content: 
+                      application/json: 
+                        schema:
+                            type: object
+                            required:
+                                - access_token
+                                - refresh_token
+                                - token_type
+                                - expires_in
+                            properties: 
+                                access_token:
+                                    type: string
+                                refresh_token:
+                                    type: string
+                                token_type:
+                                    type: string
+                                    enum:
+                                        - Bearer
+                                expires_in:
+                                    type: integer
+                                    description: Access token lifetime in seconds
+                '400':
+                    description: Bad request
+                '401':
+                    description: Incorrect login or password
+                '500': 
+                    description: Internal server error
+    /auth/refresh:
+        post:
+            summary: Refresh session tokens
+            requestBody: 
+              required: true
+              content:
+                application/json: 
+                  schema:
+                    type: object
+                    required:
+                        - refresh_token
+                    properties:
+                        refresh_token:
+                            type: string
+            responses: 
+              '200':
+                description: Tokens refreshed
+                content:
+                    application/json: 
+                      schema:
+                        type: object
+                        required: 
+                            - access_token
+                            - refresh_token
+                            - token_type
+                            - expires_in
+                        properties: 
+                            access_token:
+                                type: string
+                            refresh_token:
+                                type: string
+                                description: New token replaces the old one
+                            token_type:
+                                type: string
+                                enum:
+                                    - Bearer
+                            expires_in:
+                                type: integer
+                                description: Access token lifetime in seconds
+              '401':
+                description: Token is invalid, exprired or revoked
+              '500': 
+                description: Internal server error
