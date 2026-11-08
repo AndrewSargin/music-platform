@@ -1,4 +1,3 @@
-
 // Docs: https://dbml.dbdiagram.io/docs
 
 Table users {
@@ -8,7 +7,7 @@ Table users {
   login varchar (50) [not null, unique]
   password_hash varchar [not null]
   role varchar [not null, default: 'user']
-  created_at timestamptz [default: `now()`]
+  created_at timestamptz [not null, default: `now()`]
 
   checks {
     `role IN ('user', 'admin')` [name: 'chk_usr_role']
@@ -148,6 +147,20 @@ Table track_asset {
   }
 }
 
+Table sessions {
+  id integer [primary key]
+  user_id integer [not null]
+  device_name varchar
+  refresh_token_hash varchar [not null, unique]
+  refresh_token_expires_at timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
+  revoked_at timestamptz
+
+  indexes {
+    (user_id)
+  }
+}
+
 Ref: "artists"."id" < "album_artist"."artist_id" [delete: cascade]
 
 Ref: "album_artist"."album_id" > "albums"."id" [delete: cascade]
@@ -176,3 +189,4 @@ Ref: "tracks"."id" < "track_genre"."track_id" [delete: cascade]
 
 Ref: "tracks"."id" < "track_asset"."track_id" [delete: restrict]
 
+Ref: "users"."id" < "sessions"."user_id" [delete: cascade]
