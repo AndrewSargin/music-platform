@@ -1,7 +1,7 @@
 openapi: 3.2.0
 info:
   title: Music Server API
-  version: 0.0.1
+  version: 0.1.0
 components:
   schemas:
     TokenResponse:
@@ -193,6 +193,7 @@ paths:
   /users/me/sessions/{session_id}:
     delete:
       summary: Log out from selected session
+      description: Log out user from any chosen session, even if it is this device's session.
       security: 
         - BearerAuth: []
       parameters: 
@@ -214,6 +215,8 @@ paths:
   /search:
     post:
       summary: Create search request
+      security:
+        - BearerAuth: []
       requestBody: 
         required: true
         content:
@@ -239,6 +242,8 @@ paths:
                   search_id:
                     type: string
                     format: uuid
+        '401':
+          description: Unauthorized
         '400':
           description: Bad request
         '500':
@@ -247,6 +252,8 @@ paths:
     post:
       summary: Starts content import
       description: Starts importing content from provided Spotify URL
+      security:
+        - BearerAuth: []
       requestBody: 
         required: true
         content:
@@ -273,6 +280,8 @@ paths:
                   import_id:
                     type: string
                     format: uuid
+        '401':
+          description: Unauthorized
         '400':
           description: Bad request
         '500':
@@ -280,6 +289,8 @@ paths:
   /search/{search_id}:
     get:
       summary: Gets status of search operation
+      security:
+        - BearerAuth: []
       parameters:
         - name: search_id
           in: path
@@ -325,7 +336,7 @@ paths:
                             minLength: 1
                         length_sec:
                           type: integer
-                          minimum: 0
+                          exclusiveMinimum: 0
                         album_name:
                           type: string
                           minLength: 1
@@ -335,6 +346,8 @@ paths:
                         cover_url:
                           type: string
                           format: uri
+        '401':
+          description: Unauthorized
         '404':
           description: Not found
         '500':
@@ -342,6 +355,8 @@ paths:
   /imports/{import_id}:
     get:
       summary: Gets status of import operation
+      security:
+        - BearerAuth: []
       parameters:
         - name: import_id
           in: path
@@ -362,6 +377,7 @@ paths:
                 properties:
                   status:
                     type: string
+                    description: Import is completed when all items have reached a final state, even if some items failed to import. Failed means that whole operation has failed. Imported items can have their own failed status.
                     enum:
                       - pending
                       - completed
@@ -388,7 +404,7 @@ paths:
                             minLength: 1
                         length_sec:
                           type: integer
-                          minimum: 0
+                          exclusiveMinimum: 0
                         album_name:
                           type: string
                           minLength: 1
@@ -406,6 +422,8 @@ paths:
                         cover_url:
                           type: string
                           format: uri
+        '401':
+          description: Unauthorized
         '404':
           description: Not found
         '500':
