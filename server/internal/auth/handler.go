@@ -3,7 +3,6 @@ package auth
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 
 	"github.com/AndrewSargin/music-platform/server/internal/user"
@@ -39,18 +38,12 @@ type UserHandler struct {
 }
 
 func NewUserHandler(service *UserService) *UserHandler {
-	log.Printf("NewUH: service = %p", service)
-
 	return &UserHandler{
 		service: service,
 	}
 }
 
 func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Register: h = %p, service = %p", h, h.service)
-
-	log.Println("1. handler started")
-
 	var req JSONRegisterRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
