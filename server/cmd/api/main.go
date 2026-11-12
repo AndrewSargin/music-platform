@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/AndrewSargin/music-platform/server/internal/auth"
 	"github.com/AndrewSargin/music-platform/server/internal/database"
 	"github.com/joho/godotenv"
 )
@@ -75,6 +76,15 @@ func main() {
 
 	defer db.Close()
 
+	queries := database.New(db)
+	repository := database.NewPostgresUserRepository(queries)
+	userService := auth.NewUserService(repository)
+	authHandler := auth.NewUserHandler(userService)
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("POST /auth/register", authHandler.Register)
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Server is working")
 	})
@@ -86,6 +96,7 @@ func main() {
 		BaseContext: func(_ net.Listener) context.Context {
 			return ongoingCtx
 		},
+		Handler: mux,
 	}
 
 	serverErrorChan := make(chan error, 1)
