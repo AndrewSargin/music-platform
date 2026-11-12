@@ -3,7 +3,9 @@ package auth
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
+	"net/mail"
 
 	"github.com/AndrewSargin/music-platform/server/internal/user"
 	"github.com/google/uuid"
@@ -35,11 +37,13 @@ func writeJSONError(
 
 type UserHandler struct {
 	service *UserService
+	logger  *slog.Logger
 }
 
-func NewUserHandler(service *UserService) *UserHandler {
+func NewUserHandler(service *UserService, logger *slog.Logger) *UserHandler {
 	return &UserHandler{
 		service: service,
+		logger:  logger,
 	}
 }
 
@@ -56,7 +60,7 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || len(req.Email) > 255 {
+	if req.Email == "" || len(req.Email) > 255 || !isValidEmail(req.Email) {
 		writeJSONError(w, http.StatusBadRequest, "invalid email address")
 		return
 	}
@@ -84,9 +88,15 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusConflict, "username or email already exists")
 			return
 		}
+		h.logger.Error("failed to register user", "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
+}
+
+func isValidEmail(email string) bool {
+	_, err := mail.ParseAddress(email)
+	return err == nil
 }

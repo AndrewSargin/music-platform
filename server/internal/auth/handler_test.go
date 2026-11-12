@@ -2,6 +2,8 @@ package auth
 
 import (
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,7 +13,8 @@ import (
 func TestRegisterSuccess(t *testing.T) {
 	repo := &mockUserRepository{}
 	service := NewUserService(repo)
-	handler := NewUserHandler(service)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
 
 	body := `{
 		"display_name": "Test_display",
@@ -39,7 +42,8 @@ func TestRegisterSuccess(t *testing.T) {
 func TestRegisterInvalidJSON(t *testing.T) {
 	repo := &mockUserRepository{}
 	service := NewUserService(repo)
-	handler := NewUserHandler(service)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
 
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -60,7 +64,8 @@ func TestRegisterInvalidJSON(t *testing.T) {
 func TestRegisterEmptyField(t *testing.T) {
 	repo := &mockUserRepository{}
 	service := NewUserService(repo)
-	handler := NewUserHandler(service)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
 
 	body := `{
 		"display_name": "Test_display",
@@ -155,7 +160,8 @@ func TestRegisterEmptyField(t *testing.T) {
 /*func TestRegisterConflict(t *testing.T) {
 	repo := &mockUserRepository{}
 	service := NewUserService(repo)
-	handler := NewUserHandler(service)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
 
 	body := `{
 		"display_name": "Test_display",
@@ -207,7 +213,8 @@ func TestRegisterServerError(t *testing.T) {
 		createErr: errors.New("database connection failed"),
 	}
 	service := NewUserService(repo)
-	handler := NewUserHandler(service)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
 
 	body := `{
 		"display_name": "Test_display",

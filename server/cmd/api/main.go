@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -76,10 +77,11 @@ func main() {
 
 	defer db.Close()
 
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	queries := database.New(db)
 	repository := database.NewPostgresUserRepository(queries)
 	userService := auth.NewUserService(repository)
-	authHandler := auth.NewUserHandler(userService)
+	authHandler := auth.NewUserHandler(userService, logger)
 
 	mux := http.NewServeMux()
 
@@ -89,6 +91,9 @@ func main() {
 		fmt.Fprintln(w, "Server is working")
 	})
 
+	//handler := middleware.LoggingMiddleware(logger)(mux)
+	handler := mux
+
 	ongoingCtx, stopOngoingCtx := context.WithCancel(context.Background())
 	defer stopOngoingCtx()
 	server := &http.Server{
@@ -96,7 +101,7 @@ func main() {
 		BaseContext: func(_ net.Listener) context.Context {
 			return ongoingCtx
 		},
-		Handler: mux,
+		Handler: handler,
 	}
 
 	serverErrorChan := make(chan error, 1)

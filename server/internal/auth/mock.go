@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/AndrewSargin/music-platform/server/internal/user"
 )
@@ -16,7 +15,6 @@ func (m *mockUserRepository) Create(
 	ctx context.Context,
 	input *user.User,
 ) error {
-	fmt.Println("MOCK CREATE")
 	m.created = input
 	return m.createErr
 }
