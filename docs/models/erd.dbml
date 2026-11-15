@@ -145,7 +145,7 @@ Table track_asset {
 Table sessions {
   id uuid [primary key]
   user_id uuid [not null]
-  device_name varchar
+  device_name varchar [not null]
   refresh_token_hash varchar [not null, unique]
   refresh_token_expires_at timestamptz [not null]
   created_at timestamptz [not null, default: `now()`]

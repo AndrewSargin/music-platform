@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/mail"
 
 	"github.com/AndrewSargin/music-platform/server/internal/user"
 	"github.com/google/uuid"
@@ -16,6 +15,18 @@ type JSONRegisterRequest struct {
 	Username    string `json:"username"`
 	Email       string `json:"email"`
 	Password    string `json:"password"`
+}
+
+type JSONLoginRequest struct {
+	Login    string `json:"login"`
+	Password string `json:"password"`
+}
+
+type JSONLoginResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
 }
 
 type ErrorResponse struct {
@@ -96,7 +107,51 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func isValidEmail(email string) bool {
-	_, err := mail.ParseAddress(email)
-	return err == nil
+func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var req JSONLoginRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	if req.Login == "" {
+		writeJSONError(w, http.StatusBadRequest, "empty login field")
+		return
+	}
+
+	if req.Password == "" {
+		writeJSONError(w, http.StatusBadRequest, "empty password field")
+		return
+	}
+
+	input := loginInput{
+		login:    req.Login,
+		password: req.Password,
+	}
+
+	authData, err := h.service.Login(r.Context(), &input)
+	if err != nil {
+		if errors.Is(err, ErrIncorrectLoginData) {
+			writeJSONError(w, http.StatusUnauthorized, "incorrect login or password")
+			return
+		}
+		h.logger.Error("failed to log in user", "error", err)
+		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	response := JSONLoginResponse{
+		AccessToken:  authData.accessToken,
+		RefreshToken: authData.refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    authData.expiresIn,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.logger.Error("failed to encode login response", "error", err)
+	}
 }

@@ -35,6 +35,7 @@ var defaultParams = &Params{
 	KeyLength:  32,
 }
 
+// Creates hash of provided password
 func HashPassword(password string, params *Params) (string, error) {
 	salt, err := generateRandomBytes(params.SaltLength)
 	if err != nil {
@@ -50,6 +51,7 @@ func HashPassword(password string, params *Params) (string, error) {
 	return hash, nil
 }
 
+// Compares password and hash, returns true if they match
 func VerifyPassword(password, hash string) (bool, error) {
 	match, _, err := CheckHash(password, hash)
 	return match, err

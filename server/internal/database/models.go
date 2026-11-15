@@ -5,10 +5,21 @@
 package database
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type Session struct {
+	ID                    uuid.UUID
+	UserID                uuid.UUID
+	DeviceName            string
+	RefreshTokenHash      []byte
+	RefreshTokenExpiresAt time.Time
+	CreatedAt             time.Time
+	RevokedAt             sql.NullTime
+}
 
 type User struct {
 	ID           uuid.UUID

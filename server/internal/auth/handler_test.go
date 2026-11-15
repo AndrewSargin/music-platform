@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"crypto/ed25519"
 	"errors"
 	"io"
 	"log/slog"
@@ -10,9 +11,13 @@ import (
 	"testing"
 )
 
+var pKey ed25519.PrivateKey
+
 func TestRegisterSuccess(t *testing.T) {
-	repo := &mockUserRepository{}
-	service := NewUserService(repo)
+	userRepo := &mockUserRepository{}
+	sessionRepo := &mockSessionRepository{}
+	tS := NewTokenService(pKey)
+	service := NewUserService(userRepo, sessionRepo, *tS)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	handler := NewUserHandler(service, logger)
 
@@ -40,8 +45,10 @@ func TestRegisterSuccess(t *testing.T) {
 }
 
 func TestRegisterInvalidJSON(t *testing.T) {
-	repo := &mockUserRepository{}
-	service := NewUserService(repo)
+	userRepo := &mockUserRepository{}
+	sessionRepo := &mockSessionRepository{}
+	tS := NewTokenService(pKey)
+	service := NewUserService(userRepo, sessionRepo, *tS)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	handler := NewUserHandler(service, logger)
 
@@ -62,8 +69,10 @@ func TestRegisterInvalidJSON(t *testing.T) {
 }
 
 func TestRegisterEmptyField(t *testing.T) {
-	repo := &mockUserRepository{}
-	service := NewUserService(repo)
+	userRepo := &mockUserRepository{}
+	sessionRepo := &mockSessionRepository{}
+	tS := NewTokenService(pKey)
+	service := NewUserService(userRepo, sessionRepo, *tS)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	handler := NewUserHandler(service, logger)
 
@@ -209,10 +218,12 @@ func TestRegisterEmptyField(t *testing.T) {
 }*/
 
 func TestRegisterServerError(t *testing.T) {
-	repo := &mockUserRepository{
+	userRepo := &mockUserRepository{
 		createErr: errors.New("database connection failed"),
 	}
-	service := NewUserService(repo)
+	sessionRepo := &mockSessionRepository{}
+	tS := NewTokenService(pKey)
+	service := NewUserService(userRepo, sessionRepo, *tS)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	handler := NewUserHandler(service, logger)
 

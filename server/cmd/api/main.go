@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -21,6 +25,30 @@ import (
 type Config struct {
 	DatabaseURL string
 	Port        int
+}
+
+func LoadPrivateKey() (ed25519.PrivateKey, error) {
+	b, err := os.ReadFile("../secrets/jwt-private.pem")
+	if err != nil {
+		return nil, fmt.Errorf("read private key: %w", err)
+	}
+
+	block, _ := pem.Decode(b)
+	if block == nil {
+		return nil, errors.New("failed to decode PEM")
+	}
+
+	parsedKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse private key: %w", err)
+	}
+
+	privateKey, ok := parsedKey.(ed25519.PrivateKey)
+	if !ok {
+		return nil, errors.New("private key is not Ed25519")
+	}
+
+	return privateKey, nil
 }
 
 func LoadConfig() (Config, error) {
@@ -61,8 +89,13 @@ func main() {
 	cfg, err := LoadConfig()
 
 	if err != nil {
-		fmt.Printf("Error loading .env file: %v", err)
-		return
+		log.Fatalf("error loading config: %v", err)
+	}
+
+	privateKey, err := LoadPrivateKey()
+
+	if err != nil {
+		log.Fatalf("error loading private key: %v", err)
 	}
 
 	dbCtx, dbCtxStop := context.WithTimeout(context.Background(), 10*time.Second)
@@ -79,13 +112,16 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	queries := database.New(db)
-	repository := database.NewPostgresUserRepository(queries)
-	userService := auth.NewUserService(repository)
+	userRepository := database.NewPostgresUserRepository(queries)
+	sessionRepository := database.NewPostgresSessionRepository(queries)
+	tokenService := auth.NewTokenService(privateKey)
+	userService := auth.NewUserService(userRepository, sessionRepository, *tokenService)
 	authHandler := auth.NewUserHandler(userService, logger)
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /auth/register", authHandler.Register)
+	mux.HandleFunc("POST /auth/login", authHandler.Login)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Server is working")

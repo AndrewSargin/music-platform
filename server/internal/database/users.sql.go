@@ -44,3 +44,41 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	)
 	return i, err
 }
+
+const findByEmail = `-- name: FindByEmail :one
+SELECT username, email, password_hash
+FROM users
+WHERE email = $1
+`
+
+type FindByEmailRow struct {
+	Username     string
+	Email        string
+	PasswordHash string
+}
+
+func (q *Queries) FindByEmail(ctx context.Context, email string) (FindByEmailRow, error) {
+	row := q.db.QueryRowContext(ctx, findByEmail, email)
+	var i FindByEmailRow
+	err := row.Scan(&i.Username, &i.Email, &i.PasswordHash)
+	return i, err
+}
+
+const findByUsername = `-- name: FindByUsername :one
+SELECT username, email, password_hash
+FROM users
+WHERE username = $1
+`
+
+type FindByUsernameRow struct {
+	Username     string
+	Email        string
+	PasswordHash string
+}
+
+func (q *Queries) FindByUsername(ctx context.Context, username string) (FindByUsernameRow, error) {
+	row := q.db.QueryRowContext(ctx, findByUsername, username)
+	var i FindByUsernameRow
+	err := row.Scan(&i.Username, &i.Email, &i.PasswordHash)
+	return i, err
+}

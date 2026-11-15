@@ -9,8 +9,10 @@ import (
 )
 
 func TestUserServiceRegister(t *testing.T) {
-	repo := &mockUserRepository{}
-	service := NewUserService(repo)
+	userRepo := &mockUserRepository{}
+	sessionRepo := &mockSessionRepository{}
+	tS := NewTokenService(pKey)
+	service := NewUserService(userRepo, sessionRepo, *tS)
 
 	input := &user.User{
 		Username:     "test_username",
@@ -25,21 +27,23 @@ func TestUserServiceRegister(t *testing.T) {
 		t.Fatalf("no error expected, got %v", err)
 	}
 
-	if repo.created == nil {
+	if userRepo.created == nil {
 		t.Fatal("expected repository to receive user")
 	}
 
-	if repo.created.PasswordHash == "testPassword123!" {
+	if userRepo.created.PasswordHash == "testPassword123!" {
 		t.Fatalf("password was not hashed")
 	}
 }
 
 func TestUserServiceRegisterRepositoryError(t *testing.T) {
-	repo := &mockUserRepository{
+	userRepo := &mockUserRepository{
 		createErr: errors.New("database unavailable"),
 	}
 
-	service := NewUserService(repo)
+	sessionRepo := &mockSessionRepository{}
+	tS := NewTokenService(pKey)
+	service := NewUserService(userRepo, sessionRepo, *tS)
 
 	input := &user.User{
 		Username:     "test_username",
