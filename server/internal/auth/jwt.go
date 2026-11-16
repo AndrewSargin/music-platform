@@ -13,21 +13,27 @@ import (
 const refreshTokenTTL = 20160 * time.Minute
 const accessTokenTTL = 60 * time.Minute
 
+// refreshToken stores refresh token and its SHA-256 hash.
 type refreshToken struct {
 	token string
 	hash  [32]byte
 }
 
+// TokenService handles token-related actions
 type TokenService struct {
 	privateKey ed25519.PrivateKey
 }
 
+// NewTokenService creates TokenService
 func NewTokenService(privateKey ed25519.PrivateKey) *TokenService {
 	return &TokenService{
 		privateKey: privateKey,
 	}
 }
 
+// createTpkenPair creates a pair of access-refresh tokens.
+// It uses tokenClaims to include in the access token,
+// and returns token-related data or an error
 func (t *TokenService) createTokenPair(claims tokenClaims) (loginOutput, []byte, error) {
 	jwtClaims := jwt.MapClaims{
 		"iss": claims.iss,
@@ -54,6 +60,7 @@ func (t *TokenService) createTokenPair(claims tokenClaims) (loginOutput, []byte,
 	return output, rT.hash[:], nil
 }
 
+// generateRefreshToken generates a refresh token and its hash
 func generateRefreshToken() refreshToken {
 	token := rand.Text()
 	hash := sha256.Sum256([]byte(token))

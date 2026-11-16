@@ -13,12 +13,14 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
+// Variables describing argon2-related errors
 var (
 	ErrInvalidHash         = errors.New("argin2id: hash is not in the correct format")
 	ErrIncompatibleVariant = errors.New("argon2id: incompatible variant of argon2")
 	ErrIncompatibleVersion = errors.New("argon2id: incompatible version of argon2")
 )
 
+// Params describes parameters needed for password hashing.
 type Params struct {
 	Memory     uint32
 	Iterations uint32
@@ -27,6 +29,7 @@ type Params struct {
 	KeyLength  uint32
 }
 
+// defaultParams stores default parameters for pasword hashing.
 var defaultParams = &Params{
 	Memory:     64 * 1024,
 	Iterations: 1,
@@ -35,7 +38,7 @@ var defaultParams = &Params{
 	KeyLength:  32,
 }
 
-// Creates hash of provided password
+// Creates hash of provided password.
 func HashPassword(password string, params *Params) (string, error) {
 	salt, err := generateRandomBytes(params.SaltLength)
 	if err != nil {
@@ -51,7 +54,7 @@ func HashPassword(password string, params *Params) (string, error) {
 	return hash, nil
 }
 
-// Compares password and hash, returns true if they match
+// Compares password and hash, returns true if they match.
 func VerifyPassword(password, hash string) (bool, error) {
 	match, _, err := CheckHash(password, hash)
 	return match, err

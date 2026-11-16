@@ -14,17 +14,20 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// loginInput represents the credentials provided for user login.
 type loginInput struct {
 	login    string
 	password string
 }
 
+// loginOutput represents authentication data returned after successful login.
 type loginOutput struct {
 	accessToken  string
 	refreshToken string
 	expiresIn    int
 }
 
+// tokenClaims represents the claims included in access token.
 type tokenClaims struct {
 	iss string
 	sub string
@@ -33,17 +36,20 @@ type tokenClaims struct {
 	iat time.Time
 }
 
+// isUniqueViolation checks whether an error represents a PostgreSQL unique constraint violation.
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
+// UserService provides business logic for user registration and authentication.
 type UserService struct {
 	userRepository    user.UserRepository
 	sessionRepository session.SessionRepository
 	tokenService      TokenService
 }
 
+// NewUserService creates new UserService.
 func NewUserService(uRepo user.UserRepository, sRepo session.SessionRepository, ts TokenService) *UserService {
 	return &UserService{
 		userRepository:    uRepo,
@@ -52,6 +58,8 @@ func NewUserService(uRepo user.UserRepository, sRepo session.SessionRepository, 
 	}
 }
 
+// Register registers a new user.
+// It hashes the provided password and stores the user through the repository.
 func (s *UserService) Register(ctx context.Context, input *user.User) error {
 	passwordHash, err := HashPassword(input.PasswordHash, defaultParams)
 	if err != nil {
@@ -71,6 +79,8 @@ func (s *UserService) Register(ctx context.Context, input *user.User) error {
 	return nil
 }
 
+// Login authenticates a user using their username or email and password.
+// It returnss access and refresh tokens after successfully creating a session.
 func (s *UserService) Login(ctx context.Context, input *loginInput) (loginOutput, error) {
 	var err error
 	var userCred *user.UserCredentials

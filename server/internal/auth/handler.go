@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// JSONRegisterRequest represents the JSON payload for user registration.
 type JSONRegisterRequest struct {
 	DisplayName string `json:"display_name"`
 	Username    string `json:"username"`
@@ -17,11 +18,13 @@ type JSONRegisterRequest struct {
 	Password    string `json:"password"`
 }
 
+// JSONLoginRequest represents the JSON payload for user login.
 type JSONLoginRequest struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
+// JSONLoginResponse represents the JSON response containing authentication tokens.
 type JSONLoginResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -29,10 +32,12 @@ type JSONLoginResponse struct {
 	ExpiresIn    int    `json:"expires_in"`
 }
 
+// ErrorResponse represents the JSON response containing information about an error.
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
+// writeJSONError writes the JSON response with HTTP-status.
 func writeJSONError(
 	w http.ResponseWriter,
 	status int,
@@ -46,11 +51,13 @@ func writeJSONError(
 	})
 }
 
+// UserHandler handles HTTP requests related to user authentication.
 type UserHandler struct {
 	service *UserService
 	logger  *slog.Logger
 }
 
+// NewUserHandler creates a UserHandler.
 func NewUserHandler(service *UserService, logger *slog.Logger) *UserHandler {
 	return &UserHandler{
 		service: service,
@@ -58,6 +65,9 @@ func NewUserHandler(service *UserService, logger *slog.Logger) *UserHandler {
 	}
 }
 
+// Register handles user registration requests.
+// It validates the request, calls user service,
+// and returns an appropriate HTTP response.
 func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req JSONRegisterRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -107,6 +117,9 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+// Login handles user login requests.
+// It validates the request, calls user service,
+// and returns an appropriate HTTP response.
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req JSONLoginRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
