@@ -3,14 +3,19 @@ package auth
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/rand"
+	"testing"
 
 	"github.com/AndrewSargin/music-platform/server/internal/session"
 	"github.com/AndrewSargin/music-platform/server/internal/user"
 )
 
 type mockUserRepository struct {
-	createErr error
-	created   *user.User
+	createErr         error
+	created           *user.User
+	userCredentials   *user.UserCredentials
+	findByUsernameErr error
+	findByEmailErr    error
 }
 
 func (m *mockUserRepository) Create(
@@ -26,7 +31,7 @@ func (m *mockUserRepository) FindByUsername(
 	username string,
 ) (*user.UserCredentials, error) {
 
-	return nil, nil
+	return m.userCredentials, m.findByUsernameErr
 }
 
 func (m *mockUserRepository) FindByEmail(
@@ -34,27 +39,29 @@ func (m *mockUserRepository) FindByEmail(
 	email string,
 ) (*user.UserCredentials, error) {
 
-	return nil, nil
+	return m.userCredentials, m.findByEmailErr
 }
 
 type mockSessionRepository struct {
-	ed25519.PrivateKey
-	createError error
+	createErr error
+	created   *session.SessionData
 }
 
 func (mS *mockSessionRepository) Create(
 	ctx context.Context,
 	data *session.SessionData,
 ) error {
-	return mS.createError
+	mS.created = data
+	return mS.createErr
 }
 
-/*type mockTokenService struct {
-	output loginOutput
-	hash []byte
-	err error
-}
+func newTestTokenService(t *testing.T) *TokenService {
+	t.Helper()
 
-func (mts *mockTokenService) createTokenPair(claims tokenClaims) (loginOutput, []byte, error) {
-	return mts.output, mts.hash, mts.err
-}*/
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate test key: %v", err)
+	}
+
+	return NewTokenService(privateKey)
+}

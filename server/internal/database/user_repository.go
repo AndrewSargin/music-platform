@@ -36,6 +36,7 @@ func (r *PostgresUserRepository) FindByUsername(ctx context.Context, username st
 	}
 
 	userCred := userModel.UserCredentials{
+		ID:           dbData.ID,
 		Username:     dbData.Username,
 		Email:        dbData.Email,
 		PasswordHash: dbData.PasswordHash,
@@ -51,6 +52,7 @@ func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) 
 	}
 
 	userCred := userModel.UserCredentials{
+		ID:           dbData.ID,
 		Username:     dbData.Username,
 		Email:        dbData.Email,
 		PasswordHash: dbData.PasswordHash,
