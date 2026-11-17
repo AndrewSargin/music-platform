@@ -24,6 +24,11 @@ type JSONLoginRequest struct {
 	Password string `json:"password"`
 }
 
+// JSONTokenRequest represents the JSON payload for token refreshment.
+type JSONTokenRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 // JSONLoginResponse represents the JSON response containing authentication tokens.
 type JSONLoginResponse struct {
 	AccessToken  string `json:"access_token"`
@@ -166,5 +171,39 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.logger.Error("failed to encode login response", "error", err)
+	}
+}
+
+// RefreshTokens handles token refreshment.
+func (h *UserHandler) RefreshTokens(w http.ResponseWriter, r *http.Request) {
+	var req JSONTokenRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid json")
+	}
+
+	authData, err := h.service.RefreshTokens(r.Context(), req.RefreshToken)
+	if err != nil {
+		if errors.Is(err, ErrInvalidRefreshToken) {
+			writeJSONError(w, http.StatusUnauthorized, "token is invalid, expired or revoked")
+			return
+		}
+		h.logger.Error("failed to refresh token", "error", err)
+		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	response := JSONLoginResponse{
+		AccessToken:  authData.accessToken,
+		RefreshToken: authData.refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    authData.expiresIn,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.logger.Error("failed to encode token refresh response", "error", err)
 	}
 }

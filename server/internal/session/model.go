@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// Session represents a user's authentication session stored in the database.
 type Session struct {
 	ID                    uuid.UUID
 	UserID                uuid.UUID

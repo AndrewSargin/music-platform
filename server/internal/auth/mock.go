@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"testing"
+	"time"
 
 	"github.com/AndrewSargin/music-platform/server/internal/session"
 	"github.com/AndrewSargin/music-platform/server/internal/user"
@@ -45,6 +46,16 @@ func (m *mockUserRepository) FindByEmail(
 type mockSessionRepository struct {
 	createErr error
 	created   *session.SessionData
+
+	findByRefreshTokenHashData *session.SessionData
+	findByRefreshTokenHashErr  error
+
+	refreshSessionErr       error
+	refreshSessionCalls     int
+	refreshSessionOldHash   [32]byte
+	refreshSessionNewHash   []byte
+	refreshSessionExpiresAt time.Time
+	refreshSessionNow       time.Time
 }
 
 func (mS *mockSessionRepository) Create(
@@ -53,6 +64,28 @@ func (mS *mockSessionRepository) Create(
 ) error {
 	mS.created = data
 	return mS.createErr
+}
+
+func (mS *mockSessionRepository) FindByRefreshTokenHash(
+	ctx context.Context,
+	refreshToken [32]byte,
+) (*session.SessionData, error) {
+	return mS.findByRefreshTokenHashData, mS.findByRefreshTokenHashErr
+}
+
+func (mS *mockSessionRepository) RefreshSession(
+	ctx context.Context,
+	oldTokenHash [32]byte,
+	newTokenHash []byte,
+	expiresAt time.Time,
+	now time.Time,
+) error {
+	mS.refreshSessionCalls++
+	mS.refreshSessionOldHash = oldTokenHash
+	mS.refreshSessionNewHash = newTokenHash
+	mS.refreshSessionExpiresAt = expiresAt
+	mS.refreshSessionNow = now
+	return mS.refreshSessionErr
 }
 
 func newTestTokenService(t *testing.T) *TokenService {

@@ -1,12 +1,17 @@
 package auth
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/AndrewSargin/music-platform/server/internal/database"
+	"github.com/AndrewSargin/music-platform/server/internal/session"
 	"github.com/AndrewSargin/music-platform/server/internal/user"
 	"github.com/google/uuid"
 )
@@ -370,5 +375,210 @@ func TestUserServiceLoginSessionRepositoryError(t *testing.T) {
 
 	if !errors.Is(err, repoErr) {
 		t.Fatalf("expected wrapped session repository error, got %v", err)
+	}
+}
+
+func TestRefreshTokesSuccess(t *testing.T) {
+	ctx := context.Background()
+
+	oldRefreshToken := "old-refreshtoken"
+	oldTokenHash := sha256.Sum256([]byte(oldRefreshToken))
+
+	sessionData := &session.SessionData{
+		ID:                    uuid.New(),
+		UserID:                uuid.New(),
+		RefreshTokenExpiresAt: time.Now().Add(time.Hour),
+	}
+
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashData: sessionData,
+	}
+
+	tS := newTestTokenService(t)
+	service := NewUserService(nil, sessionRepo, *tS)
+
+	output, err := service.RefreshTokens(ctx, oldRefreshToken)
+
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if output.accessToken == "" {
+		t.Error("expected access token to be generated")
+	}
+	if output.refreshToken == "" {
+		t.Error("expected refresh token to be generated")
+	}
+
+	if sessionRepo.refreshSessionCalls != 1 {
+		t.Fatalf("expected RefreshSession to be called once, got %d", sessionRepo.refreshSessionCalls)
+	}
+
+	if sessionRepo.refreshSessionOldHash != oldTokenHash {
+		t.Error("unexpected old refresh token hash")
+	}
+
+	if len(sessionRepo.refreshSessionNewHash) != sha256.Size {
+		t.Errorf("expected new hash to be %d bytes, got %d", sha256.Size, len(sessionRepo.refreshSessionNewHash))
+	}
+
+	if bytes.Equal(oldTokenHash[:], sessionRepo.refreshSessionNewHash) {
+		t.Errorf("expected new refresh token hash to differ from old hash")
+	}
+}
+
+func TestRefreshTokenNotFound(t *testing.T) {
+	ctx := context.Background()
+
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashErr: sql.ErrNoRows,
+	}
+
+	tS := newTestTokenService(t)
+	service := NewUserService(nil, sessionRepo, *tS)
+
+	_, err := service.RefreshTokens(ctx, "unknown-refresh-token")
+
+	if !errors.Is(err, ErrInvalidRefreshToken) {
+		t.Fatalf("expepcted ErrInvalidRefreshToken, got %v", err)
+	}
+
+	if sessionRepo.refreshSessionCalls != 0 {
+		t.Errorf("expected RefreshSession not to be called, got %d calls", sessionRepo.refreshSessionCalls)
+	}
+}
+
+func TestRefreshTokensNilSession(t *testing.T) {
+	ctx := context.Background()
+
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashData: nil,
+	}
+
+	tS := newTestTokenService(t)
+	service := NewUserService(nil, sessionRepo, *tS)
+
+	_, err := service.RefreshTokens(ctx, "unknown-refresh-token")
+
+	if !errors.Is(err, ErrInvalidRefreshToken) {
+		t.Fatalf("expected ErrInvalidRefreshToken, got: %v", err)
+	}
+
+	if sessionRepo.refreshSessionCalls != 0 {
+		t.Errorf("expected RefreshSession not to be called, got %d calls", sessionRepo.refreshSessionCalls)
+	}
+}
+
+func TestRefreshTokensExpiredSession(t *testing.T) {
+	ctx := context.Background()
+
+	sessionData := &session.SessionData{
+		ID:                    uuid.New(),
+		UserID:                uuid.New(),
+		RefreshTokenExpiresAt: time.Now().Add(-time.Hour),
+	}
+
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashData: sessionData,
+	}
+
+	tS := newTestTokenService(t)
+	service := NewUserService(nil, sessionRepo, *tS)
+
+	_, err := service.RefreshTokens(ctx, "expired-refresh-token")
+
+	if !errors.Is(err, ErrInvalidRefreshToken) {
+		t.Fatalf("expected ErrInvalidRefreshToken, got: %v", err)
+	}
+
+	if sessionRepo.refreshSessionCalls != 0 {
+		t.Errorf("expected RefreshSession not to be called, got %d calls", sessionRepo.refreshSessionCalls)
+	}
+}
+
+func TestRefreshTokenSessionSearchError(t *testing.T) {
+	ctx := context.Background()
+	repoErr := errors.New("database connection failed")
+
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashErr: repoErr,
+	}
+
+	tS := newTestTokenService(t)
+	service := NewUserService(nil, sessionRepo, *tS)
+
+	_, err := service.RefreshTokens(ctx, "some-refresh-token")
+
+	if !errors.Is(err, repoErr) {
+		t.Fatalf("expected wrapped repository error, got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "session search") {
+		t.Errorf("expected error context 'session search', got: %v", err)
+	}
+
+	if sessionRepo.refreshSessionCalls != 0 {
+		t.Errorf("expected RefreshSession not to be called, got %d calls", sessionRepo.refreshSessionCalls)
+	}
+}
+
+func TestRefreshTokenRotationError(t *testing.T) {
+	ctx := context.Background()
+	repoErr := errors.New("database update failed")
+
+	sessionData := &session.SessionData{
+		ID:                    uuid.New(),
+		UserID:                uuid.New(),
+		RefreshTokenExpiresAt: time.Now().Add(time.Hour),
+	}
+
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashData: sessionData,
+		refreshSessionErr:          repoErr,
+	}
+
+	tS := newTestTokenService(t)
+	service := NewUserService(nil, sessionRepo, *tS)
+
+	_, err := service.RefreshTokens(ctx, "valid-refresh-token")
+
+	if !errors.Is(err, repoErr) {
+		t.Fatalf("expected wrapped repository error, got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "session rotation") {
+		t.Errorf("expected error context 'session rotation', got: %v", err)
+	}
+
+	if sessionRepo.refreshSessionCalls != 1 {
+		t.Errorf("expected RefreshSession to be called once, got %d calls", sessionRepo.refreshSessionCalls)
+	}
+}
+
+func TestRefreshTokenSessionNotFoundDuringRotation(t *testing.T) {
+	ctx := context.Background()
+
+	sessionData := &session.SessionData{
+		ID:                    uuid.New(),
+		UserID:                uuid.New(),
+		RefreshTokenExpiresAt: time.Now().Add(time.Hour),
+	}
+
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashData: sessionData,
+		refreshSessionErr:          database.ErrSessionNotFound,
+	}
+
+	tS := newTestTokenService(t)
+	service := NewUserService(nil, sessionRepo, *tS)
+
+	_, err := service.RefreshTokens(ctx, "valid-refresh-token")
+
+	if !errors.Is(err, ErrInvalidRefreshToken) {
+		t.Fatalf("expected ErrInvalidRefreshToken, got: %v", err)
+	}
+
+	if sessionRepo.refreshSessionCalls != 1 {
+		t.Errorf("expected RefreshSession to be called once, got %d calls", sessionRepo.refreshSessionCalls)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// SessionData contains the data required to work with user's sessions in the database.
 type SessionData struct {
 	ID                    uuid.UUID
 	UserID                uuid.UUID

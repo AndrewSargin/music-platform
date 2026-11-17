@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,4 +37,60 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const findByRefreshTokenHash = `-- name: FindByRefreshTokenHash :one
+SELECT id, user_id, refresh_token_expires_at
+FROM sessions
+WHERE refresh_token_hash = $1
+`
+
+type FindByRefreshTokenHashRow struct {
+	ID                    uuid.UUID
+	UserID                uuid.UUID
+	RefreshTokenExpiresAt time.Time
+}
+
+func (q *Queries) FindByRefreshTokenHash(ctx context.Context, refreshTokenHash []byte) (FindByRefreshTokenHashRow, error) {
+	row := q.db.QueryRowContext(ctx, findByRefreshTokenHash, refreshTokenHash)
+	var i FindByRefreshTokenHashRow
+	err := row.Scan(&i.ID, &i.UserID, &i.RefreshTokenExpiresAt)
+	return i, err
+}
+
+const findSessionByRefreshTokenHashForUpdate = `-- name: FindSessionByRefreshTokenHashForUpdate :one
+SELECT id, user_id, refresh_token_expires_at
+FROM sessions
+WHERE refresh_token_hash = $1
+FOR UPDATE
+`
+
+type FindSessionByRefreshTokenHashForUpdateRow struct {
+	ID                    uuid.UUID
+	UserID                uuid.UUID
+	RefreshTokenExpiresAt time.Time
+}
+
+func (q *Queries) FindSessionByRefreshTokenHashForUpdate(ctx context.Context, refreshTokenHash []byte) (FindSessionByRefreshTokenHashForUpdateRow, error) {
+	row := q.db.QueryRowContext(ctx, findSessionByRefreshTokenHashForUpdate, refreshTokenHash)
+	var i FindSessionByRefreshTokenHashForUpdateRow
+	err := row.Scan(&i.ID, &i.UserID, &i.RefreshTokenExpiresAt)
+	return i, err
+}
+
+const rotateSession = `-- name: RotateSession :execresult
+UPDATE sessions
+    SET refresh_token_hash = $2,
+        refresh_token_expires_at = $3
+WHERE id = $1
+`
+
+type RotateSessionParams struct {
+	ID                    uuid.UUID
+	RefreshTokenHash      []byte
+	RefreshTokenExpiresAt time.Time
+}
+
+func (q *Queries) RotateSession(ctx context.Context, arg RotateSessionParams) (sql.Result, error) {
+	return q.db.ExecContext(ctx, rotateSession, arg.ID, arg.RefreshTokenHash, arg.RefreshTokenExpiresAt)
 }

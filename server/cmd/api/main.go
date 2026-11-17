@@ -22,11 +22,13 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Config contains the configuration required to run the API server.
 type Config struct {
 	DatabaseURL string
 	Port        int
 }
 
+// LoadPrivateKey reads an Ed25519 private key from PEM-encided file.
 func LoadPrivateKey() (ed25519.PrivateKey, error) {
 	b, err := os.ReadFile("../secrets/jwt-private.pem")
 	if err != nil {
@@ -51,6 +53,7 @@ func LoadPrivateKey() (ed25519.PrivateKey, error) {
 	return privateKey, nil
 }
 
+// LoadConfig load the server configuration from the environment.
 func LoadConfig() (Config, error) {
 	err := godotenv.Load("../.env")
 	if err != nil {
@@ -113,7 +116,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	queries := database.New(db)
 	userRepository := database.NewPostgresUserRepository(queries)
-	sessionRepository := database.NewPostgresSessionRepository(queries)
+	sessionRepository := database.NewPostgresSessionRepository(db, queries)
 	tokenService := auth.NewTokenService(privateKey)
 	userService := auth.NewUserService(userRepository, sessionRepository, *tokenService)
 	authHandler := auth.NewUserHandler(userService, logger)
@@ -122,10 +125,7 @@ func main() {
 
 	mux.HandleFunc("POST /auth/register", authHandler.Register)
 	mux.HandleFunc("POST /auth/login", authHandler.Login)
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "Server is working")
-	})
+	mux.HandleFunc("POST /auth/refresh", authHandler.RefreshTokens)
 
 	//handler := middleware.LoggingMiddleware(logger)(mux)
 	handler := mux

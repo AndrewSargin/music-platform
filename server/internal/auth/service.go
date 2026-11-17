@@ -3,11 +3,13 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/AndrewSargin/music-platform/server/internal/database"
 	"github.com/AndrewSargin/music-platform/server/internal/session"
 	"github.com/AndrewSargin/music-platform/server/internal/user"
 	"github.com/google/uuid"
@@ -80,7 +82,7 @@ func (s *UserService) Register(ctx context.Context, input *user.User) error {
 }
 
 // Login authenticates a user using their username or email and password.
-// It returnss access and refresh tokens after successfully creating a session.
+// It returns access and refresh tokens after successfully creating a session.
 func (s *UserService) Login(ctx context.Context, input *loginInput) (loginOutput, error) {
 	var err error
 	var userCred *user.UserCredentials
@@ -116,18 +118,11 @@ func (s *UserService) Login(ctx context.Context, input *loginInput) (loginOutput
 	}
 
 	sid := uuid.New()
+	now := time.Now()
 
-	claims := tokenClaims{
-		iss: "server",
-		sub: userCred.ID.String(),
-		sid: sid.String(),
-		exp: time.Now().Add(accessTokenTTL),
-		iat: time.Now(),
-	}
-
-	output, hash, err := s.tokenService.createTokenPair(claims)
+	output, hash, err := s.generateSessionTokens(userCred.ID, sid, now)
 	if err != nil {
-		return loginOutput{}, fmt.Errorf("access token creation: %w", err)
+		return loginOutput{}, err
 	}
 
 	err = s.sessionRepository.Create(ctx, &session.SessionData{
@@ -135,12 +130,73 @@ func (s *UserService) Login(ctx context.Context, input *loginInput) (loginOutput
 		UserID:                userCred.ID,
 		DeviceName:            "",
 		RefreshTokenHash:      hash,
-		RefreshTokenExpiresAt: claims.iat.Add(refreshTokenTTL),
-		CreatedAt:             claims.iat,
+		RefreshTokenExpiresAt: now.Add(refreshTokenTTL),
+		CreatedAt:             now,
 	})
 	if err != nil {
 		return loginOutput{}, fmt.Errorf("session creation: %w", err)
 	}
 
 	return output, nil
+}
+
+// RefreshTokens verifies provided token and makes a token rotation,
+// returning new pair of tokens
+func (s *UserService) RefreshTokens(ctx context.Context, refreshToken string) (loginOutput, error) {
+
+	tokenHash := sha256.Sum256([]byte(refreshToken))
+	now := time.Now()
+
+	sessionData, err := s.sessionRepository.FindByRefreshTokenHash(ctx, tokenHash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return loginOutput{}, ErrInvalidRefreshToken
+	}
+	if err != nil {
+		return loginOutput{}, fmt.Errorf("session search: %w", err)
+	}
+	if sessionData == nil {
+		return loginOutput{}, ErrInvalidRefreshToken
+	}
+	if now.After(sessionData.RefreshTokenExpiresAt) {
+		return loginOutput{}, ErrInvalidRefreshToken
+	}
+
+	output, hash, err := s.generateSessionTokens(sessionData.UserID, sessionData.ID, now)
+	if err != nil {
+		return loginOutput{}, fmt.Errorf("session token generation: %w", err)
+	}
+
+	err = s.sessionRepository.RefreshSession(
+		ctx,
+		tokenHash,
+		hash,
+		now.Add(refreshTokenTTL),
+		now,
+	)
+	if err != nil {
+		if errors.Is(err, database.ErrSessionNotFound) {
+			return loginOutput{}, ErrInvalidRefreshToken
+		}
+		return loginOutput{}, fmt.Errorf("session rotation: %w", err)
+	}
+
+	return output, nil
+}
+
+// generateSessionTokens generates a pair of tokens
+func (s *UserService) generateSessionTokens(userID, sessionID uuid.UUID, now time.Time) (loginOutput, []byte, error) {
+	claims := tokenClaims{
+		iss: "server",
+		sub: userID.String(),
+		sid: sessionID.String(),
+		exp: now.Add(accessTokenTTL),
+		iat: now,
+	}
+
+	output, hash, err := s.tokenService.createTokenPair(claims)
+	if err != nil {
+		return loginOutput{}, nil, fmt.Errorf("token pair creation: %w", err)
+	}
+
+	return output, hash, nil
 }

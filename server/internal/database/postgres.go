@@ -9,6 +9,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// NewPostgresDB opens a connection pool to PostgreSQL and verifires connectivity.
 func NewPostgresDB(ctx context.Context, dbURL string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dbURL)
 
