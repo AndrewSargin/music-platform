@@ -180,7 +180,8 @@ func (h *UserHandler) RefreshTokens(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&req)
 
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid json")
+		writeJSONError(w, http.StatusUnauthorized, "token is invalid, expired or revoked")
+		return
 	}
 
 	authData, err := h.service.RefreshTokens(r.Context(), req.RefreshToken)

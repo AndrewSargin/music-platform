@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -10,9 +12,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/AndrewSargin/music-platform/server/internal/session"
 	"github.com/AndrewSargin/music-platform/server/internal/user"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRegisterSuccess(t *testing.T) {
@@ -466,4 +471,147 @@ func TestLoginServerError(t *testing.T) {
 	if strings.Contains(rec.Body.String(), "database connection failed") {
 		t.Fatalf("internal error details should not be exposed")
 	}
+}
+
+func TestRefreshTokenSuccess(t *testing.T) {
+	oldRefreshToken := "test-refresh-token"
+	oldTokenHash := sha256.Sum256([]byte(oldRefreshToken))
+
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashData: &session.SessionData{
+			ID:                    uuid.New(),
+			UserID:                uuid.New(),
+			RefreshTokenHash:      oldTokenHash[:],
+			RefreshTokenExpiresAt: time.Now().Add(time.Hour),
+		},
+	}
+
+	userRepo := &mockUserRepository{}
+	tS := newTestTokenService(t)
+
+	service := NewUserService(userRepo, sessionRepo, *tS)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
+
+	body, err := json.Marshal(JSONTokenRequest{
+		RefreshToken: oldRefreshToken,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/auth/refresh",
+		bytes.NewReader(body),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.RefreshTokens(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 1, sessionRepo.refreshSessionCalls)
+
+	var response JSONLoginResponse
+	err = json.NewDecoder(rec.Body).Decode(&response)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, response.AccessToken)
+	require.NotEmpty(t, response.RefreshToken)
+	require.Equal(t, "Bearer", response.TokenType)
+	require.Greater(t, response.ExpiresIn, 0)
+	require.NotEqual(t, oldRefreshToken, response.RefreshToken)
+}
+
+func TestRefreshTokensInvalidJSON(t *testing.T) {
+	sessionRepo := &mockSessionRepository{}
+	userRepo := &mockUserRepository{}
+
+	tokenService := newTestTokenService(t)
+	service := NewUserService(userRepo, sessionRepo, *tokenService)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/auth/refresh",
+		strings.NewReader("token is invalid, expired or revoked"),
+	)
+	recorder := httptest.NewRecorder()
+
+	handler.RefreshTokens(recorder, req)
+
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	require.Equal(t, 0, sessionRepo.refreshSessionCalls)
+
+	var response ErrorResponse
+	err := json.NewDecoder(recorder.Body).Decode(&response)
+	require.NoError(t, err)
+	require.Equal(t, "token is invalid, expired or revoked", response.Error)
+}
+
+func TestRefreshTokensInvalidToken(t *testing.T) {
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashErr: sql.ErrNoRows,
+	}
+	userRepo := &mockUserRepository{}
+
+	tokenService := newTestTokenService(t)
+	service := NewUserService(userRepo, sessionRepo, *tokenService)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
+
+	body := `{"refresh_token": "invalid-refresh-token"}`
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/auth/refresh",
+		strings.NewReader(body),
+	)
+	recorder := httptest.NewRecorder()
+
+	handler.RefreshTokens(recorder, req)
+
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+
+	var response ErrorResponse
+	err := json.NewDecoder(recorder.Body).Decode(&response)
+	require.NoError(t, err)
+	require.Equal(t, "token is invalid, expired or revoked", response.Error)
+
+	require.Equal(t, 0, sessionRepo.refreshSessionCalls)
+}
+
+func TestRefreshTokensServerError(t *testing.T) {
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashErr: errors.New("database connection failed"),
+	}
+	userRepo := &mockUserRepository{}
+
+	tokenService := newTestTokenService(t)
+	service := NewUserService(userRepo, sessionRepo, *tokenService)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
+
+	body := `{"refresh_token": "valid-looking-refresh-token"}`
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/auth/refresh",
+		strings.NewReader(body),
+	)
+	recorder := httptest.NewRecorder()
+
+	handler.RefreshTokens(recorder, req)
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+
+	var response ErrorResponse
+	err := json.NewDecoder(recorder.Body).Decode(&response)
+	require.NoError(t, err)
+	require.Equal(t, "internal server error", response.Error)
+
+	require.Equal(t, 0, sessionRepo.refreshSessionCalls)
+	require.NotContains(t, recorder.Body.String(), "database connection failed")
 }
