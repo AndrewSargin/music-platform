@@ -46,10 +46,18 @@ func (r *PostgresSessionRepository) FindByRefreshTokenHash(ctx context.Context, 
 		return nil, err
 	}
 
+	var revokedAt time.Time
+	if data.RevokedAt.Valid {
+		revokedAt = data.RevokedAt.Time
+	} else {
+		revokedAt = time.Time{}
+	}
+
 	session := &session.SessionData{
 		ID:                    data.ID,
 		UserID:                data.UserID,
 		RefreshTokenExpiresAt: data.RefreshTokenExpiresAt,
+		RevokedAt:             revokedAt,
 	}
 
 	return session, nil

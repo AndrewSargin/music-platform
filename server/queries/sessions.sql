@@ -9,12 +9,12 @@ UPDATE sessions
 WHERE id = $1;
 
 -- name: FindByRefreshTokenHash :one
-SELECT id, user_id, refresh_token_expires_at
+SELECT id, user_id, refresh_token_expires_at, revoked_at
 FROM sessions
 WHERE refresh_token_hash = $1;
 
 -- name: FindSessionByRefreshTokenHashForUpdate :one
-SELECT id, user_id, refresh_token_expires_at
+SELECT id, user_id, refresh_token_expires_at, revoked_at
 FROM sessions
 WHERE refresh_token_hash = $1
 FOR UPDATE;

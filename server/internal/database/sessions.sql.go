@@ -40,7 +40,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 }
 
 const findByRefreshTokenHash = `-- name: FindByRefreshTokenHash :one
-SELECT id, user_id, refresh_token_expires_at
+SELECT id, user_id, refresh_token_expires_at, revoked_at
 FROM sessions
 WHERE refresh_token_hash = $1
 `
@@ -49,17 +49,23 @@ type FindByRefreshTokenHashRow struct {
 	ID                    uuid.UUID
 	UserID                uuid.UUID
 	RefreshTokenExpiresAt time.Time
+	RevokedAt             sql.NullTime
 }
 
 func (q *Queries) FindByRefreshTokenHash(ctx context.Context, refreshTokenHash []byte) (FindByRefreshTokenHashRow, error) {
 	row := q.db.QueryRowContext(ctx, findByRefreshTokenHash, refreshTokenHash)
 	var i FindByRefreshTokenHashRow
-	err := row.Scan(&i.ID, &i.UserID, &i.RefreshTokenExpiresAt)
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.RefreshTokenExpiresAt,
+		&i.RevokedAt,
+	)
 	return i, err
 }
 
 const findSessionByRefreshTokenHashForUpdate = `-- name: FindSessionByRefreshTokenHashForUpdate :one
-SELECT id, user_id, refresh_token_expires_at
+SELECT id, user_id, refresh_token_expires_at, revoked_at
 FROM sessions
 WHERE refresh_token_hash = $1
 FOR UPDATE
@@ -69,12 +75,18 @@ type FindSessionByRefreshTokenHashForUpdateRow struct {
 	ID                    uuid.UUID
 	UserID                uuid.UUID
 	RefreshTokenExpiresAt time.Time
+	RevokedAt             sql.NullTime
 }
 
 func (q *Queries) FindSessionByRefreshTokenHashForUpdate(ctx context.Context, refreshTokenHash []byte) (FindSessionByRefreshTokenHashForUpdateRow, error) {
 	row := q.db.QueryRowContext(ctx, findSessionByRefreshTokenHashForUpdate, refreshTokenHash)
 	var i FindSessionByRefreshTokenHashForUpdateRow
-	err := row.Scan(&i.ID, &i.UserID, &i.RefreshTokenExpiresAt)
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.RefreshTokenExpiresAt,
+		&i.RevokedAt,
+	)
 	return i, err
 }
 

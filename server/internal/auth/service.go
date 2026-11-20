@@ -160,6 +160,9 @@ func (s *UserService) RefreshTokens(ctx context.Context, refreshToken string) (l
 	if now.After(sessionData.RefreshTokenExpiresAt) {
 		return loginOutput{}, ErrInvalidRefreshToken
 	}
+	if !sessionData.RevokedAt.IsZero() {
+		return loginOutput{}, ErrInvalidRefreshToken
+	}
 
 	output, hash, err := s.generateSessionTokens(sessionData.UserID, sessionData.ID, now)
 	if err != nil {

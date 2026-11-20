@@ -14,4 +14,5 @@ type SessionData struct {
 	RefreshTokenHash      []byte
 	RefreshTokenExpiresAt time.Time
 	CreatedAt             time.Time
+	RevokedAt             time.Time
 }
