@@ -90,10 +90,22 @@ func (q *Queries) FindSessionByRefreshTokenHashForUpdate(ctx context.Context, re
 	return i, err
 }
 
+const logoutFromSession = `-- name: LogoutFromSession :execresult
+UPDATE sessions
+SET revoked_at = NOW()
+WHERE id = $1
+    AND revoked_at IS NULL
+    AND refresh_token_expires_at > NOW()
+`
+
+func (q *Queries) LogoutFromSession(ctx context.Context, id uuid.UUID) (sql.Result, error) {
+	return q.db.ExecContext(ctx, logoutFromSession, id)
+}
+
 const rotateSession = `-- name: RotateSession :execresult
 UPDATE sessions
-    SET refresh_token_hash = $2,
-        refresh_token_expires_at = $3
+SET refresh_token_hash = $2,
+    refresh_token_expires_at = $3
 WHERE id = $1
 `
 

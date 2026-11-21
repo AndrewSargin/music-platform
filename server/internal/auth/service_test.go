@@ -14,6 +14,7 @@ import (
 	"github.com/AndrewSargin/music-platform/server/internal/session"
 	"github.com/AndrewSargin/music-platform/server/internal/user"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUserServiceRegister(t *testing.T) {
@@ -581,4 +582,63 @@ func TestRefreshTokenSessionNotFoundDuringRotation(t *testing.T) {
 	if sessionRepo.refreshSessionCalls != 1 {
 		t.Errorf("expected RefreshSession to be called once, got %d calls", sessionRepo.refreshSessionCalls)
 	}
+}
+
+func TestUserServiceLogoutSuccess(t *testing.T) {
+	sessionRepo := &mockSessionRepository{}
+	service := NewUserService(
+		&mockUserRepository{},
+		sessionRepo,
+		*newTestTokenService(t),
+	)
+
+	refreshToken := "valid-refresh-token"
+
+	before := time.Now()
+	err := service.Logout(context.Background(), refreshToken)
+	after := time.Now()
+
+	require.NoError(t, err)
+	require.Equal(t, 1, sessionRepo.logoutCalls)
+
+	expectedHash := sha256.Sum256([]byte(refreshToken))
+	require.Equal(t, expectedHash, sessionRepo.logoutTokenHash)
+
+	require.False(t, sessionRepo.logoutNow.Before(before))
+	require.False(t, sessionRepo.logoutNow.After(after))
+}
+
+func TestUserServiceLogout_NotFound(t *testing.T) {
+	sessionRepo := &mockSessionRepository{
+		logoutErr: ErrNoContent,
+	}
+	service := NewUserService(
+		&mockUserRepository{},
+		sessionRepo,
+		*newTestTokenService(t),
+	)
+
+	err := service.Logout(context.Background(), "unknown-token")
+
+	require.ErrorIs(t, err, ErrNoContent)
+	require.Equal(t, 1, sessionRepo.logoutCalls)
+}
+
+func TestUserServiceLogout_RepositoryError(t *testing.T) {
+	repoErr := errors.New("database connection failed")
+
+	sessionRepo := &mockSessionRepository{
+		logoutErr: repoErr,
+	}
+	service := NewUserService(
+		&mockUserRepository{},
+		sessionRepo,
+		*newTestTokenService(t),
+	)
+
+	err := service.Logout(context.Background(), "valid-token")
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, repoErr)
+	require.Equal(t, 1, sessionRepo.logoutCalls)
 }

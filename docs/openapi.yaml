@@ -49,14 +49,19 @@ paths:
               type: object
               required:
                 - display_name
-                - login
+                - username
+                - email
                 - password
               properties:
                 display_name:
                   type: string
                   minLength: 3
                   maxLength: 50
-                login:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                email:
                   type: string
                   minLength: 3
                   maxLength: 50
@@ -139,6 +144,8 @@ paths:
       responses:
         '204':
           description: No content
+        '500':
+          description: Internal server error
   /auth/logout-all:
     post:
       summary: End all user's sessions

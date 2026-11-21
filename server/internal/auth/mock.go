@@ -56,6 +56,11 @@ type mockSessionRepository struct {
 	refreshSessionNewHash   []byte
 	refreshSessionExpiresAt time.Time
 	refreshSessionNow       time.Time
+
+	logoutErr       error
+	logoutCalls     int
+	logoutTokenHash [32]byte
+	logoutNow       time.Time
 }
 
 func (mS *mockSessionRepository) Create(
@@ -86,6 +91,17 @@ func (mS *mockSessionRepository) RefreshSession(
 	mS.refreshSessionExpiresAt = expiresAt
 	mS.refreshSessionNow = now
 	return mS.refreshSessionErr
+}
+
+func (mS *mockSessionRepository) Logout(
+	ctx context.Context,
+	refreshTokenHash [32]byte,
+	now time.Time,
+) error {
+	mS.logoutCalls++
+	mS.logoutTokenHash = refreshTokenHash
+	mS.logoutNow = now
+	return mS.logoutErr
 }
 
 func newTestTokenService(t *testing.T) *TokenService {

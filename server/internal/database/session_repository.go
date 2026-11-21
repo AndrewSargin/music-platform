@@ -92,12 +92,67 @@ func (r *PostgresSessionRepository) RefreshSession(
 	if !data.RefreshTokenExpiresAt.After(now) {
 		return ErrSessionNotFound
 	}
+	if !data.RevokedAt.Time.IsZero() {
+		return ErrSessionNotFound
+	}
 
 	result, err := qtx.RotateSession(ctx, RotateSessionParams{
 		ID:                    data.ID,
 		RefreshTokenHash:      newTokenHash,
 		RefreshTokenExpiresAt: expiresAt,
 	})
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrSessionNotFound
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Logout atomically logs out from current session.
+// It verifies that the token hash belongs to an active, unexpired session
+// before setting the "revoked_at" field in database.
+func (r *PostgresSessionRepository) Logout(
+	ctx context.Context,
+	refreshTokenHash [32]byte,
+	now time.Time,
+) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	qtx := r.queries.WithTx(tx)
+
+	data, err := qtx.FindSessionByRefreshTokenHashForUpdate(ctx, refreshTokenHash[:])
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrSessionNotFound
+		}
+		return err
+	}
+	if !data.RefreshTokenExpiresAt.After(now) {
+		return ErrSessionNotFound
+	}
+
+	if !data.RevokedAt.Time.IsZero() {
+		return ErrSessionNotFound
+	}
+
+	result, err := qtx.LogoutFromSession(ctx, data.ID)
 	if err != nil {
 		return err
 	}

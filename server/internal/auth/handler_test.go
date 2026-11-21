@@ -172,58 +172,6 @@ func TestRegisterEmptyField(t *testing.T) {
 	}
 }
 
-// Test for integration with testing DB in future
-/*func TestRegisterConflict(t *testing.T) {
-	repo := &mockUserRepository{}
-	service := NewUserService(repo)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := NewUserHandler(service, logger)
-
-	body := `{
-		"display_name": "Test_display",
-		"username": "test_username",
-		"email": "test@example.com",
-		"password": "testPassword123!"
-		}`
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/auth/register",
-		strings.NewReader(body),
-	)
-
-	rec := httptest.NewRecorder()
-
-	handler.Register(rec, req)
-
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("expected status %d, got %d; body: %s",
-			http.StatusCreated, rec.Code, rec.Body.String())
-	}
-
-	body2 := `{
-		"display_name": "New_display",
-		"username": "test_username",
-		"email": "NewTest@example.com",
-		"password": "NewTestPassword123!"
-		}`
-
-	req = httptest.NewRequest(
-		http.MethodPost,
-		"/auth/register",
-		strings.NewReader(body2),
-	)
-
-	rec = httptest.NewRecorder()
-
-	handler.Register(rec, req)
-
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("expected status %d, got %d; body: %s",
-			http.StatusConflict, rec.Code, rec.Body.String())
-	}
-}*/
-
 func TestRegisterServerError(t *testing.T) {
 	userRepo := &mockUserRepository{
 		createErr: errors.New("database connection failed"),
@@ -614,4 +562,153 @@ func TestRefreshTokensServerError(t *testing.T) {
 
 	require.Equal(t, 0, sessionRepo.refreshSessionCalls)
 	require.NotContains(t, recorder.Body.String(), "database connection failed")
+}
+
+func TestLogoutSuccess(t *testing.T) {
+	refreshToken := "test-refresh-token"
+	tokenHash := sha256.Sum256([]byte(refreshToken))
+
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashData: &session.SessionData{
+			ID:                    uuid.New(),
+			UserID:                uuid.New(),
+			RefreshTokenHash:      tokenHash[:],
+			RefreshTokenExpiresAt: time.Now().Add(time.Hour),
+		},
+	}
+
+	userRepo := &mockUserRepository{}
+	tS := newTestTokenService(t)
+
+	service := NewUserService(userRepo, sessionRepo, *tS)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
+
+	body, err := json.Marshal(JSONTokenRequest{
+		RefreshToken: refreshToken,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/auth/logout",
+		bytes.NewReader(body),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.Logout(rec, req)
+
+	require.Equal(t, http.StatusNoContent, rec.Code)
+	require.Equal(t, 1, sessionRepo.logoutCalls)
+}
+
+func TestLogoutUnknownToken(t *testing.T) {
+	refreshToken := "test-refresh-token"
+	tokenHash := sha256.Sum256([]byte(refreshToken))
+	wrongToken := "unknown-token"
+
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashData: &session.SessionData{
+			ID:                    uuid.New(),
+			UserID:                uuid.New(),
+			RefreshTokenHash:      tokenHash[:],
+			RefreshTokenExpiresAt: time.Now().Add(time.Hour),
+		},
+	}
+
+	userRepo := &mockUserRepository{}
+	tS := newTestTokenService(t)
+
+	service := NewUserService(userRepo, sessionRepo, *tS)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
+
+	body, err := json.Marshal(JSONTokenRequest{
+		RefreshToken: wrongToken,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/auth/logout",
+		bytes.NewReader(body),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.Logout(rec, req)
+
+	require.Equal(t, http.StatusNoContent, rec.Code)
+	require.Equal(t, 1, sessionRepo.logoutCalls)
+}
+
+func TestLogoutRevokedToken(t *testing.T) {
+	refreshToken := "test-refresh-token"
+	tokenHash := sha256.Sum256([]byte(refreshToken))
+
+	sessionRepo := &mockSessionRepository{
+		findByRefreshTokenHashData: &session.SessionData{
+			ID:                    uuid.New(),
+			UserID:                uuid.New(),
+			RefreshTokenHash:      tokenHash[:],
+			RefreshTokenExpiresAt: time.Now().Add(-time.Hour),
+		},
+	}
+
+	userRepo := &mockUserRepository{}
+	tS := newTestTokenService(t)
+
+	service := NewUserService(userRepo, sessionRepo, *tS)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
+
+	body, err := json.Marshal(JSONTokenRequest{
+		RefreshToken: refreshToken,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/auth/logout",
+		bytes.NewReader(body),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.Logout(rec, req)
+
+	require.Equal(t, http.StatusNoContent, rec.Code)
+	require.Equal(t, 1, sessionRepo.logoutCalls)
+}
+
+func TestLogoutError(t *testing.T) {
+	sessionRepo := &mockSessionRepository{
+		logoutErr: errors.New("database connection failed"),
+	}
+	userRepo := &mockUserRepository{}
+	tS := newTestTokenService(t)
+
+	service := NewUserService(userRepo, sessionRepo, *tS)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewUserHandler(service, logger)
+
+	body, err := json.Marshal(JSONTokenRequest{
+		RefreshToken: "test-refresh-token",
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/auth/logout",
+		bytes.NewReader(body),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.Logout(rec, req)
+
+	var response ErrorResponse
+	err = json.NewDecoder(rec.Body).Decode(&response)
+	require.NoError(t, err)
+	require.Equal(t, "internal server error", response.Error)
+
+	require.Equal(t, 0, sessionRepo.refreshSessionCalls)
+	require.NotContains(t, rec.Body.String(), "database connection failed")
 }

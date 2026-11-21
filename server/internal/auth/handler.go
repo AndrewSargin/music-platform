@@ -208,3 +208,27 @@ func (h *UserHandler) RefreshTokens(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("failed to encode token refresh response", "error", err)
 	}
 }
+
+// Logout handles logout from current device's session
+func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	var req JSONTokenRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+
+	if err != nil {
+		writeJSONError(w, http.StatusNoContent, "no content")
+		return
+	}
+
+	err = h.service.Logout(r.Context(), req.RefreshToken)
+	if err != nil {
+		if errors.Is(err, ErrNoContent) {
+			writeJSONError(w, http.StatusNoContent, "no content")
+			return
+		}
+		h.logger.Error("logout error", "error", err)
+		writeJSONError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

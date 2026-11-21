@@ -8,7 +8,7 @@ import (
 // SessionRepository defines the persistence operations for user sessions.
 type SessionRepository interface {
 	Create(ctx context.Context, session *SessionData) error
-	FindByRefreshTokenHash(ctx context.Context, refreshToken [32]byte) (*SessionData, error)
+	FindByRefreshTokenHash(ctx context.Context, refreshTokenHash [32]byte) (*SessionData, error)
 	RefreshSession(
 		ctx context.Context,
 		oldTokenHash [32]byte,
@@ -16,4 +16,8 @@ type SessionRepository interface {
 		expiresAt time.Time,
 		now time.Time,
 	) error
+	Logout(
+		ctx context.Context,
+		refreshTokenHash [32]byte,
+		now time.Time) error
 }

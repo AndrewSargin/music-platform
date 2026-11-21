@@ -4,9 +4,16 @@ VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: RotateSession :execresult
 UPDATE sessions
-    SET refresh_token_hash = $2,
-        refresh_token_expires_at = $3
+SET refresh_token_hash = $2,
+    refresh_token_expires_at = $3
 WHERE id = $1;
+
+-- name: LogoutFromSession :execresult
+UPDATE sessions
+SET revoked_at = NOW()
+WHERE id = $1
+    AND revoked_at IS NULL
+    AND refresh_token_expires_at > NOW();
 
 -- name: FindByRefreshTokenHash :one
 SELECT id, user_id, refresh_token_expires_at, revoked_at

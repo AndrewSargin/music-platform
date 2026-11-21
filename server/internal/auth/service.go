@@ -203,3 +203,19 @@ func (s *UserService) generateSessionTokens(userID, sessionID uuid.UUID, now tim
 
 	return output, hash, nil
 }
+
+// Logout verifies provided token and logs out of related session.
+// Returns "no content" whether the token is valid or not.
+func (s *UserService) Logout(ctx context.Context, refreshToken string) error {
+	tokenHash := sha256.Sum256([]byte(refreshToken))
+
+	err := s.sessionRepository.Logout(ctx, tokenHash, time.Now())
+	if err != nil {
+		if errors.Is(err, database.ErrSessionNotFound) {
+			return ErrNoContent
+		}
+		return fmt.Errorf("session logout: %w", err)
+	}
+
+	return nil
+}
